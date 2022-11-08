@@ -1,0 +1,28 @@
+{
+  "name": "fits-reader",
+  "version": "0.0.6",
+  "description": "Typescript interface to read FITS files",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "npx tsc"
+  },
+  "repository": "https://dev.azure.com/MikeWestbrook/FITS/_git/fits-electron",
+  "keywords": [
+    "Astrophotography",
+    "FITS",
+    "NASA Data",
+    "JWST Data",
+    "Hubble Data",
+    "MAST",
+    "Mikulski Archive for Space Telescopes"
+  ],
+  "author": "Mike Westbrook",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^18.11.3",
+    "typescript": "^4.8.4"
+  },
+  "dependencies": {
+    "fs-jetpack": "^5.0.0"
+  }
+}
