@@ -1,6 +1,6 @@
 {
   "name": "fits-reader",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Typescript interface to read FITS files",
   "main": "./dist/index.js",
   "scripts": {
@@ -22,7 +22,5 @@
     "@types/node": "^18.11.3",
     "typescript": "^4.8.4"
   },
-  "dependencies": {
-    "fs-jetpack": "^5.0.0"
-  }
+  "dependencies": {}
 }

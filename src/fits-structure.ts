@@ -1,4 +1,4 @@
-import { readAsync } from "fs-jetpack";
+import { readFile } from "fs";
 
 /**
  * Table 8: Interpretation of valid BITPIX value.
@@ -17,12 +17,6 @@ enum PixelDataType {
   Signed64 = "64",
   SingleFloat = "-32",
   DoubleFloat = "-64",
-}
-
-interface DataStats {
-  min: number;
-  max: number;
-  histogram: { [value: string]: number };
 }
 
 class MetaDataParser {
@@ -108,7 +102,16 @@ export class FitsStructure {
   static readonly RECORD_SIZE = 80;
 
   static async getFileBuffer(fileName: string) {
-    const buffer = await readAsync(fileName, "buffer");
+    const buffer = await new Promise<Buffer>((resolve, reject) =>
+      readFile(fileName, (error, data) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(data);
+        }
+      })
+    );
+
     if (!buffer) {
       throw new Error(`Unable to load ${fileName}`);
     }
