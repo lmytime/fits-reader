@@ -101,28 +101,6 @@ export class FitsStructure {
 
   static readonly RECORD_SIZE = 80;
 
-  static async getFileBuffer(fileName: string) {
-    const buffer = await new Promise<Buffer>((resolve, reject) =>
-      readFile(fileName, (error, data) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(data);
-        }
-      })
-    );
-
-    if (!buffer) {
-      throw new Error(`Unable to load ${fileName}`);
-    }
-
-    return buffer;
-  }
-
-  static async getPrimaryHDU(fileName: string) {
-    return new FitsStructure(await FitsStructure.getFileBuffer(fileName));
-  }
-
   static numBlocks(numBytes: number) {
     return Math.ceil(numBytes / FitsStructure.BLOCK_SIZE);
   }
@@ -324,7 +302,8 @@ export class FitsStructure {
     while (offset < data.length) {
       switch (dataType) {
         case PixelDataType.SingleFloat:
-          values.push(data.readFloatBE(offset));
+          const value = data.readFloatBE(offset);
+          values.push(value);
           offset = offset + bytesPerPixel;
           break;
         case PixelDataType.Signed32:
@@ -389,6 +368,11 @@ export class FitsStructure {
     return this.getMetadataValue("BITPIX") as PixelDataType;
   }
 
+  isImage() {
+    const xtension = this.getMetadataValue("XTENSION");
+    return xtension && xtension.toLowerCase().includes("image");
+  }
+
   /**
    * BITPIX keyword. The value field shall contain an integer. The
    * absolute value is used in computing the sizes of data structures.
@@ -414,107 +398,5 @@ export class FitsStructure {
     } else {
       throw new Error(`Invalid pixel data type ${dataType}`);
     }
-  }
-
-  /**
-   * WIP extrapolation of data from data.
-   * TODO hardcoded for jw01328-o015_t014_miri_f770w_i2d.fits
-   * jw01328-o015_t014_miri_f1500w_i2d.fits
-   * and 560w
-   */
-  static async abracadabra() {
-    const filename = "jw01328-c1006_t014_miri_f560w_i2d.fits";
-    const filename2 = "jw01328-o015_t014_miri_f770w_i2d.fits";
-    const filename3 = "jw01328-o015_t014_miri_f1500w_i2d.fits";
-
-    const hdu = await FitsStructure.getPrimaryHDU(filename);
-    const hdu2 = await FitsStructure.getPrimaryHDU(filename2);
-    const hdu3 = await FitsStructure.getPrimaryHDU(filename3);
-
-    const rMin = 1.7;
-    const rMax = 15;
-    const rChannel = hdu.getNextStructure();
-    const rData = rChannel?.getDataValuesArray();
-
-    const r2Min = 0.15;
-    const r2Max = 0.5;
-    const r2Channel = rChannel?.getNextStructure();
-    const r2Data = r2Channel?.getDataValuesArray();
-
-    const gMin = 20;
-    const gMax = 125;
-    const gChannel = hdu2.getNextStructure();
-    const gData = gChannel?.getDataValuesArray();
-
-    const g2Min = 0.15;
-    const g2Max = 0.9;
-    const g2Channel = gChannel?.getNextStructure();
-    const g2Data = g2Channel?.getDataValuesArray();
-
-    const bMin = 75;
-    const bMax = 100;
-    const bChannel = hdu3.getNextStructure();
-    const bData = bChannel?.getDataValuesArray();
-
-    const b2Min = 0.25;
-    const b2Max = 0.4;
-    const b2Channel = bChannel?.getNextStructure();
-    const b2Data = b2Channel?.getDataValuesArray();
-
-    if (!(rData && gData && bData && r2Data && g2Data && b2Data)) {
-      throw new Error("fooodoafsdjofajsd");
-    }
-
-    const stream = new Uint8ClampedArray(1032 * 1028 * 4);
-
-    let streamIndex = 0;
-
-    const adjust = (value: number, min: number, max: number) => {
-      const adjusted = Math.min(Math.max(value, min), max);
-      return 255 * ((adjusted - min) / (max - min));
-    };
-
-    for (let row = 0; row < 1028; row++) {
-      for (let col = 0; col < 1032; col++) {
-        const rNormalized = adjust(rData[row][col], rMin, rMax);
-        const r2Normalized = adjust(r2Data[row][col], r2Min, r2Max);
-
-        const gNormalized = adjust(gData[row][col], gMin, gMax);
-        const g2Normalized = adjust(g2Data[row][col], g2Min, g2Max);
-
-        const bNormalized = adjust(bData[row][col], bMin, bMax);
-        const b2Normalized = adjust(b2Data[row][col], b2Min, b2Max);
-
-        const r = (rNormalized + r2Normalized) / 2;
-        const g = (gNormalized + g2Normalized) / 2;
-        const b = (bNormalized + b2Normalized) / 2;
-
-        stream[streamIndex + 0] = r;
-        stream[streamIndex + 1] = g;
-        stream[streamIndex + 2] = b;
-        stream[streamIndex + 3] = 255;
-        streamIndex += 4;
-      }
-    }
-
-    return stream;
-  }
-
-  static async getLayers(file: string, numLayer = 1) {
-    // TODO lots of assumptions here
-    const primary = await FitsStructure.getPrimaryHDU(file);
-    let next: FitsStructure | undefined = primary;
-    const layers: Array<Array<Array<number>>> = [];
-    for (let layerNum = 0; layerNum < numLayer; layerNum++) {
-      next = next?.getNextStructure();
-      if (!next) {
-        throw new Error(`No data for layer ${layerNum + 1}`);
-      }
-
-      layers.push(next.getDataValuesArray());
-      next = next.getNextStructure();
-    }
-
-    return layers;
   }
 }
