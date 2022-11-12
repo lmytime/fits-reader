@@ -285,7 +285,7 @@ export class FitsStructure {
       return Buffer.from("");
     } else {
       const startBlock = this.getNumHeaderBlocks(); // + 1;
-      const endBlock = startBlock + this.getNumDataBlocks() + 1;
+      const endBlock = startBlock + this.getNumDataBlocks();
       return this.rawData.subarray(
         startBlock * FitsStructure.BLOCK_SIZE,
         endBlock * FitsStructure.BLOCK_SIZE
@@ -293,6 +293,9 @@ export class FitsStructure {
     }
   }
 
+  /**
+   * @returns 1D array of all data values
+   */
   getDataValues(): Array<number> {
     const values: Array<number> = [];
     const data = this.getDataUnit();
@@ -322,6 +325,10 @@ export class FitsStructure {
     return values;
   }
 
+  /**
+   * TODO handle n axis.
+   * @returns 2D array of all data values.
+   */
   getDataValuesArray(): Array<Array<number>> {
     const values: Array<Array<number>> = [];
     const width = this.sizeAxis(1);
@@ -398,5 +405,38 @@ export class FitsStructure {
     } else {
       throw new Error(`Invalid pixel data type ${dataType}`);
     }
+  }
+
+  getDataStats(): {
+    min: number;
+    max: number;
+    median: number;
+    mean: number;
+    stdDev: number;
+  } {
+    const data = this.getDataValues();
+    const median = data.sort()[data.length / 2];
+    let min = Number.MAX_VALUE;
+    let max = Number.MIN_VALUE;
+    let sum = 0;
+    data.forEach((value) => {
+      if (value < min) {
+        min = value;
+      }
+
+      if (value > max) {
+        max = value;
+      }
+
+      sum += value;
+    });
+
+    const mean = sum / data.length;
+    const stdDev = Math.sqrt(
+      data.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) /
+        data.length
+    );
+
+    return { min, max, median, mean, stdDev };
   }
 }

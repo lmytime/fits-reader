@@ -1,6 +1,23 @@
 import { readFile } from "fs";
 import { FitsStructure } from "./fits-structure";
 
+abstract class Filter {
+  static basicFilter(structure: FitsStructure): Filter {
+    const stats = structure.getDataStats();
+    const max = stats.median + stats.stdDev;
+    const min = stats.median - stats.stdDev;
+    return {
+      filter: (value: number) => {
+        return Math.min(Math.max(value, min), max);
+      },
+    };
+  }
+
+  filter(value: number): number {
+    throw new Error("Not implemented");
+  }
+}
+
 export class PrimaryHDU {
   private static async getFileBuffer(fileName: string) {
     const buffer = await new Promise<Buffer>((resolve, reject) =>
@@ -21,12 +38,12 @@ export class PrimaryHDU {
   }
 
   static async fromFile(fileName: string) {
-    return new FitsStructure(await PrimaryHDU.getFileBuffer(fileName));
+    return await new PrimaryHDU(fileName).load();
   }
 
   private readonly fileName: string;
 
-  private hdu: FitsStructure | undefined;
+  private primaryHDU: FitsStructure | undefined;
 
   // All structures
   private structures: Array<FitsStructure> | undefined;
@@ -34,17 +51,26 @@ export class PrimaryHDU {
   // All image structures (TODO reduce duplication)
   private images: Array<FitsStructure> | undefined;
 
-  private stats: Array<{}> = [];
+  private stats: Array<{
+    min: number;
+    max: number;
+    median: number;
+    mean: number;
+    stdDev: number;
+  }> = [];
 
   constructor(fileName: string) {
     this.fileName = fileName;
   }
 
   async load() {
-    if (!this.hdu) {
-      this.hdu = await PrimaryHDU.fromFile(this.fileName);
+    if (!this.primaryHDU) {
+      this.primaryHDU = new FitsStructure(
+        await PrimaryHDU.getFileBuffer(this.fileName)
+      );
+
       this.structures = [];
-      let next = this.hdu.getNextStructure();
+      let next = this.primaryHDU.getNextStructure();
       while (next) {
         this.structures.push(next);
         next = next.getNextStructure();
@@ -55,11 +81,11 @@ export class PrimaryHDU {
   }
 
   getHdu() {
-    if (!this.hdu) {
+    if (!this.primaryHDU) {
       throw new Error("Must await `load` first");
     }
 
-    return this.hdu;
+    return this.primaryHDU;
   }
 
   getStructure(layerNum: number) {
@@ -86,39 +112,34 @@ export class PrimaryHDU {
     return this.images;
   }
 
-  getLayerStats(layerNum: number) {
+  getLayerStats(layerNum: number): {
+    min: number;
+    max: number;
+    median: number;
+    mean: number;
+    stdDev: number;
+  } {
     if (this.stats[layerNum]) {
       return this.stats[layerNum];
     }
 
-    const data = this.getStructure(layerNum).getDataValuesArray();
-    const median = data.sort()[data.length / 2];
-    let min = Number.MAX_VALUE;
-    let max = Number.MIN_VALUE;
-    let sum = 0;
-    data.forEach((row) =>
-      row.forEach((value) => {
-        if (value < min) {
-          min = value;
-        }
+    this.stats[layerNum] = this.getStructure(layerNum).getDataStats();
+    return this.stats[layerNum];
+  }
 
-        if (value > max) {
-          max = value;
-        }
+  filterLayer(layerNum: number, filter?: Filter) {
+    filter = filter || Filter.basicFilter(this.getStructure(layerNum));
 
-        sum += value;
-      })
-    );
+    const filtered: Array<number> = [];
+    const data = this.getStructure(layerNum).getDataValues();
+    data.forEach((value) => {
+      if (!filter) {
+        throw new Error("No filter");
+      }
 
-    const mean = sum / (data.length * data[0].length);
-    const foo = data.reduce((rowSum, row) => {
-      return (
-        rowSum +
-        row.reduce((sum, value) => {
-          return sum + Math.pow(value - mean, 2);
-        }, 0)
-      );
-    }, 0);
-    return { min, max, median, mean, foo };
+      filtered.push(filter.filter(value));
+    });
+
+    return filtered;
   }
 }
